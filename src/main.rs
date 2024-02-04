@@ -1,22 +1,23 @@
-use std::io::{Read, Write};
-use std::net::TcpListener;
+use tokio::net::TcpListener;
 
-fn main() {
-    let listener = TcpListener::bind("127.0.0.1:6379").unwrap();
-    
-    for stream in listener.incoming() {
-        match stream {
-            Ok(mut stream) => {
-                println!("accepted new connection");
-                let mut buf = [0u8; 1024];
-                loop {
-                    stream.read(&mut buf).unwrap();
-                    stream.write_all(b"+PONG\r\n").unwrap();
-                }
+use redis_starter_rust::process_stream;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let listener = TcpListener::bind("127.0.0.1:6379").await?;
+
+    loop {
+        match listener.accept().await {
+            Ok((stream, addr)) => {
+                tokio::spawn(async move {
+                    eprintln!("new client: {:?}", addr);
+                    match process_stream(stream).await {
+                        Ok(_) => {}
+                        Err(err) => eprintln!("Processing of stream failed: {}", err),
+                    };
+                });
             }
-            Err(e) => {
-                println!("error: {}", e);
-            }
+            Err(e) => eprintln!("couldn't get client: {:?}", e),
         }
     }
 }
