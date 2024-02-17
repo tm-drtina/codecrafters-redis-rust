@@ -1,6 +1,6 @@
 use tokio::net::TcpListener;
 
-use redis_starter_rust::process_stream;
+use redis_starter_rust::Server;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -8,10 +8,10 @@ async fn main() -> anyhow::Result<()> {
 
     loop {
         match listener.accept().await {
-            Ok((stream, addr)) => {
+            Ok((mut stream, addr)) => {
                 tokio::spawn(async move {
-                    eprintln!("new client: {:?}", addr);
-                    match process_stream(stream).await {
+                    let server = Server::new(&mut stream, addr);
+                    match server.run_processing_loop().await {
                         Ok(_) => {}
                         Err(err) => eprintln!("Processing of stream failed: {}", err),
                     };
