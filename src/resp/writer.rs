@@ -46,6 +46,11 @@ impl<'stream> RespWriter<'stream> {
                     self.writer.write_all(&data).await?;
                     self.write_crlf().await?;
                 }
+                RespType::NullBulkString => {
+                    self.writer.write_u8(b'-').await?;
+                    self.writer.write_u8(b'1').await?;
+                    self.write_crlf().await?;
+                }
                 RespType::Array(items) => {
                     self.writer
                         .write_all(format!("{}", items.len()).as_bytes())

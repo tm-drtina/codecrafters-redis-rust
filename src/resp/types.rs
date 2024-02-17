@@ -14,6 +14,7 @@ pub enum RespType {
     SimpleError(String),
     Integer(i64),
     BulkString(Box<[u8]>),
+    NullBulkString,
     Array(VecDeque<Self>),
 }
 
@@ -21,11 +22,11 @@ impl RespType {
     #[allow(dead_code)]
     pub(crate) const fn first_byte(&self) -> u8 {
         match self {
-            RespType::SimpleString(_) => b'+',
-            RespType::SimpleError(_) => b'-',
-            RespType::Integer(_) => b':',
-            RespType::BulkString(_) => b'$',
-            RespType::Array(_) => b'*',
+            Self::SimpleString(_) => b'+',
+            Self::SimpleError(_) => b'-',
+            Self::Integer(_) => b':',
+            Self::BulkString(_) | Self::NullBulkString => b'$',
+            Self::Array(_) => b'*',
         }
     }
 }
