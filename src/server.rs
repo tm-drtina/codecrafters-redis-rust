@@ -1,13 +1,11 @@
-use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use tokio::sync::Mutex;
 
-struct Inner {
-    data: HashMap<Box<[u8]>, Box<[u8]>>,
-}
+use crate::data::Data;
 
-pub struct Server(Arc<Mutex<Inner>>);
+pub struct Server(Arc<Mutex<Data>>);
 
 impl Clone for Server {
     fn clone(&self) -> Self {
@@ -17,15 +15,13 @@ impl Clone for Server {
 
 impl Server {
     pub fn new() -> Self {
-        Self(Arc::new(Mutex::new(Inner {
-            data: HashMap::new(),
-        })))
+        Self(Arc::new(Mutex::new(Data::new())))
     }
 
-    pub async fn get(&self, key: &Box<[u8]>) -> Option<Box<[u8]>> {
-        self.0.lock().await.data.get(key).cloned()
+    pub async fn get(&self, key: Box<[u8]>) -> Option<Box<[u8]>> {
+        self.0.lock().await.get(key).await
     }
-    pub async fn set(&self, key: Box<[u8]>, value: Box<[u8]>) -> Option<Box<[u8]>> {
-        self.0.lock().await.data.insert(key, value)
+    pub async fn set(&self, key: Box<[u8]>, value: Box<[u8]>, expiry: Option<Duration>) -> Option<Box<[u8]>> {
+        self.0.lock().await.set(key, value, expiry).await
     }
 }

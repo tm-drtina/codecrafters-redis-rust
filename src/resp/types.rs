@@ -1,5 +1,7 @@
 use std::collections::VecDeque;
 
+use anyhow::Context;
+
 /// RESP data type 	Minimal protocol version 	Category 	First byte
 /// Simple strings 	RESP2 	Simple 	+
 /// Simple Errors 	RESP2 	Simple 	-
@@ -19,7 +21,6 @@ pub enum RespType {
 }
 
 impl RespType {
-    #[allow(dead_code)]
     pub(crate) const fn first_byte(&self) -> u8 {
         match self {
             Self::SimpleString(_) => b'+',
@@ -27,6 +28,46 @@ impl RespType {
             Self::Integer(_) => b':',
             Self::BulkString(_) | Self::NullBulkString => b'$',
             Self::Array(_) => b'*',
+        }
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn as_str_bytes(&self) -> anyhow::Result<&[u8]> {
+        match self {
+            Self::SimpleString(s) => Ok(s.as_bytes()),
+            Self::BulkString(s) => Ok(s.as_ref()),
+            Self::SimpleError(_) | Self::Integer(_) | Self::NullBulkString | Self::Array(_) => {
+                anyhow::bail!("Value is not a string type")
+            }
+        }
+    }
+
+    pub(crate) fn as_int(&self) -> anyhow::Result<i64> {
+        match self {
+            Self::Integer(i) => Ok(*i),
+            Self::SimpleString(s) => s.parse().context("Failed to parse str as int"),
+            Self::BulkString(s) => std::str::from_utf8(s)?.parse().context("Failed to parse str as int"),
+            Self::SimpleError(_)
+            | Self::NullBulkString
+            | Self::Array(_) => {
+                anyhow::bail!("Value is not a string type")
+            }
+        }
+    }
+
+    pub(crate) fn make_str_bytes_lowercase(&mut self) -> anyhow::Result<&[u8]> {
+        match self {
+            Self::SimpleString(s) => {
+                s.make_ascii_lowercase();
+                Ok(s.as_bytes())
+            }
+            Self::BulkString(s) => {
+                s.make_ascii_lowercase();
+                Ok(s.as_mut())
+            }
+            Self::SimpleError(_) | Self::Integer(_) | Self::NullBulkString | Self::Array(_) => {
+                anyhow::bail!("Value is not a string type")
+            }
         }
     }
 }

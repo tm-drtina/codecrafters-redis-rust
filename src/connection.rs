@@ -1,7 +1,8 @@
 use std::collections::VecDeque;
 use std::net::SocketAddr;
+use std::time::Duration;
 
-use anyhow::{anyhow, bail, ensure};
+use anyhow::{anyhow, bail, ensure, Context};
 use tokio::net::TcpStream;
 
 use crate::resp::{RespReader, RespType, RespWriter};
@@ -53,7 +54,7 @@ impl<'a> Connection<'a> {
                     RespType::BulkString(s) => s,
                     _ => bail!("Invalid value for `key` argument"),
                 };
-                let value = self.server.get(&key).await;
+                let value = self.server.get(key).await;
                 match value {
                     Some(value) => RespType::BulkString(value),
                     None => RespType::NullBulkString,
@@ -69,7 +70,19 @@ impl<'a> Connection<'a> {
                     RespType::BulkString(s) => s,
                     _ => bail!("Invalid value for `value` argument"),
                 };
-                let _old_value = self.server.set(key, value).await;
+                let mut expiry = None;
+                while let Some(mut arg) = args.pop_front() {
+                    let argname = arg.make_str_bytes_lowercase()?;
+                    match argname {
+                        b"px" => {
+                            let duration_mili = args.pop_front().ok_or(anyhow!("Missing value for `px` arg"))?.as_int().context("Value of `px` arg must be an integer")?;
+                            ensure!(duration_mili >= 0, "Expiration cannot be negative");
+                            expiry = Some(Duration::from_millis(duration_mili as u64));
+                        }
+                        _ => bail!("Unknown parameter `{}` for `SET` command", String::from_utf8_lossy(argname))
+                    }
+                }
+                let _old_value = self.server.set(key, value, expiry).await;
                 RespType::SimpleString(String::from("OK"))
             }
             b"command" => {
