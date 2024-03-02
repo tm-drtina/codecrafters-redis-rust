@@ -1,3 +1,4 @@
+use std::net::SocketAddr;
 use std::ops::Deref;
 use std::sync::Arc;
 use std::time::Duration;
@@ -9,12 +10,12 @@ use crate::data::Data;
 #[derive(Debug)]
 pub enum ReplicationMode {
     Master,
-    Slave { host: String, port: u16 },
+    Slave { addr: SocketAddr },
 }
 
 #[derive(Debug)]
 pub struct Inner {
-    pub(crate) replication: ReplicationMode,
+    pub replication: ReplicationMode,
     pub(crate) master_replid: String,
     pub(crate) master_repl_offset: usize,
     data: Mutex<Data>,

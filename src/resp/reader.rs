@@ -67,6 +67,7 @@ impl<'stream> RespReader<'stream> {
             .context("Failed to parse string to int")
     }
 
+    #[must_use]
     pub fn read_item<'a>(
         &'a mut self,
     ) -> Pin<Box<dyn Future<Output = anyhow::Result<Option<RespType>>> + 'a + Send>> {

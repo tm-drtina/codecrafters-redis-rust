@@ -1,9 +1,9 @@
 use std::net::{IpAddr, SocketAddr};
 
 use anyhow::{bail, Context};
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
 
-use redis_starter_rust::{Connection, ReplicationMode, Server};
+use redis_starter_rust::{Connection, ReplicationConnection, ReplicationMode, Server};
 
 struct Config {
     host: IpAddr,
@@ -32,7 +32,7 @@ fn parse_args() -> anyhow::Result<Config> {
                     .context("Invalid value for port arg")?
             }
             "--replicaof" => {
-                let host = args
+                let mut host = args
                     .next()
                     .context("Argument `replicaof` missing host value")?;
                 let port = args
@@ -40,7 +40,12 @@ fn parse_args() -> anyhow::Result<Config> {
                     .context("Argument `replicaof` missing port value")?
                     .parse()
                     .context("Invalid value for port arg")?;
-                config.replication = ReplicationMode::Slave { host, port };
+                if host == "localhost" {
+                    // TODO: perform DNS resolution instead
+                    host = String::from("127.0.0.1");
+                }
+                let addr = SocketAddr::new(host.parse()?, port);
+                config.replication = ReplicationMode::Slave { addr };
             }
             _ => bail!("Unrecognized argument {arg}"),
         }
@@ -54,6 +59,21 @@ async fn main() -> anyhow::Result<()> {
     let addr = SocketAddr::new(config.host, config.port);
     let listener = TcpListener::bind(addr).await?;
     let server = Server::new(config.replication);
+
+    if let ReplicationMode::Slave { addr } = server.replication {
+        let server = server.clone();
+        let mut stream = TcpStream::connect(addr)
+            .await
+            .context("Connceting to master node failed")
+            .unwrap();
+        tokio::spawn(async move {
+            let conn = ReplicationConnection::new(&mut stream, server);
+            match conn.run_replication_loop().await {
+                Ok(_) => {}
+                Err(err) => eprintln!("Processing of stream failed: {}", err),
+            };
+        });
+    }
 
     loop {
         match listener.accept().await {
