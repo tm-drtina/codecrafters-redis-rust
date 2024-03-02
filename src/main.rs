@@ -3,11 +3,12 @@ use std::net::{IpAddr, SocketAddr};
 use anyhow::{bail, Context};
 use tokio::net::TcpListener;
 
-use redis_starter_rust::{Connection, Server};
+use redis_starter_rust::{Connection, ReplicationMode, Server};
 
 struct Config {
     host: IpAddr,
     port: u16,
+    replication: ReplicationMode,
 }
 
 fn parse_args() -> anyhow::Result<Config> {
@@ -17,7 +18,8 @@ fn parse_args() -> anyhow::Result<Config> {
 
     let mut config = Config {
         host: "127.0.0.1".parse().unwrap(),
-        port: 6379
+        port: 6379,
+        replication: ReplicationMode::Master,
     };
 
     while let Some(arg) = args.next() {
@@ -29,7 +31,18 @@ fn parse_args() -> anyhow::Result<Config> {
                     .parse()
                     .context("Invalid value for port arg")?
             }
-            _ => bail!("Unrecognized argument {arg}")
+            "--replicaof" => {
+                let host = args
+                    .next()
+                    .context("Argument `replicaof` missing host value")?;
+                let port = args
+                    .next()
+                    .context("Argument `replicaof` missing port value")?
+                    .parse()
+                    .context("Invalid value for port arg")?;
+                config.replication = ReplicationMode::Slave { host, port };
+            }
+            _ => bail!("Unrecognized argument {arg}"),
         }
     }
     Ok(config)
@@ -40,7 +53,7 @@ async fn main() -> anyhow::Result<()> {
     let config = parse_args()?;
     let addr = SocketAddr::new(config.host, config.port);
     let listener = TcpListener::bind(addr).await?;
-    let server = Server::new();
+    let server = Server::new(config.replication);
 
     loop {
         match listener.accept().await {

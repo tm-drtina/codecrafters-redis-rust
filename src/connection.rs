@@ -88,7 +88,10 @@ impl<'a> Connection<'a> {
             b"info" => {
                 let mut buf = Vec::new();
                 buf.extend_from_slice(b"# Replication");
-                buf.extend_from_slice(b"\nrole:master");
+                match self.server.replication {
+                    crate::ReplicationMode::Master => buf.extend_from_slice(b"\nrole:master"),
+                    crate::ReplicationMode::Slave { .. } => buf.extend_from_slice(b"\nrole:slave"),
+                }
                 RespType::BulkString(buf.into_boxed_slice())
             }
             b"command" => {
