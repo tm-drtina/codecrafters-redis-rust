@@ -105,6 +105,21 @@ impl<'a> Connection<'a> {
                 eprintln!("Ignoring `REPLCONF` command.");
                 RespType::SimpleString(String::from("OK"))
             }
+            b"psync" => {
+                ensure!(args.len() == 2, "PSYNC requires exactly two args!");
+                let master_id = match args.pop_front().unwrap() {
+                    RespType::BulkString(s) => s,
+                    _ => bail!("Invalid value for `key` argument"),
+                };
+                let offset = match args.pop_front().unwrap() {
+                    RespType::BulkString(s) => s,
+                    _ => bail!("Invalid value for `value` argument"),
+                };
+                ensure!(&*master_id == &*b"?", "Expected unknown master ID");
+                ensure!(&*offset == &*b"-1", "Expected unknown master ID");
+
+                RespType::SimpleString(format!("FULLRESYNC {} {}", self.server.master_replid, self.server.master_repl_offset))
+            }
             _ => bail!("Unknown command `{}`", String::from_utf8_lossy(command)),
         })
     }
