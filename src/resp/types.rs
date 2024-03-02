@@ -63,4 +63,11 @@ impl RespType {
             }
         }
     }
+
+    pub(crate) fn bulk_string_from_bytes(bytes: &[u8]) -> Self {
+        RespType::BulkString(bytes.to_vec().into_boxed_slice())
+    }
+    pub(crate) fn bulk_string_from_string(s: String) -> Self {
+        RespType::BulkString(s.into_bytes().into_boxed_slice())
+    }
 }

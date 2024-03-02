@@ -58,7 +58,7 @@ async fn main() -> anyhow::Result<()> {
     let config = parse_args()?;
     let addr = SocketAddr::new(config.host, config.port);
     let listener = TcpListener::bind(addr).await?;
-    let server = Server::new(config.replication);
+    let server = Server::new(config.replication, addr);
 
     if let ReplicationMode::Slave { addr } = server.replication {
         let server = server.clone();

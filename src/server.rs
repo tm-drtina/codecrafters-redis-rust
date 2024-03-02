@@ -16,6 +16,7 @@ pub enum ReplicationMode {
 #[derive(Debug)]
 pub struct Inner {
     pub replication: ReplicationMode,
+    pub addr: SocketAddr,
     pub(crate) master_replid: String,
     pub(crate) master_repl_offset: usize,
     data: Mutex<Data>,
@@ -39,12 +40,13 @@ impl Clone for Server {
 }
 
 impl Server {
-    pub fn new(replication: ReplicationMode) -> Self {
+    pub fn new(replication: ReplicationMode, addr: SocketAddr) -> Self {
         let master_replid = String::from("8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb");
         let master_repl_offset = 0;
 
         Self(Arc::new(Inner {
             replication,
+            addr,
             master_replid,
             master_repl_offset,
             data: Default::default(),
