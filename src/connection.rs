@@ -101,6 +101,10 @@ impl<'a> Connection<'a> {
                 eprintln!("Ignoring `COMMAND` command. Sending back empty array");
                 RespType::Array(VecDeque::new())
             }
+            b"replconf" => {
+                eprintln!("Ignoring `REPLCONF` command.");
+                RespType::SimpleString(String::from("OK"))
+            }
             _ => bail!("Unknown command `{}`", String::from_utf8_lossy(command)),
         })
     }
