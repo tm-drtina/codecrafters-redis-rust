@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 use std::net::SocketAddr;
 use std::time::Duration;
+use std::io::Write;
 
 use anyhow::{anyhow, bail, ensure, Context};
 use tokio::net::TcpStream;
@@ -92,6 +93,8 @@ impl<'a> Connection<'a> {
                     crate::ReplicationMode::Master => buf.extend_from_slice(b"\nrole:master"),
                     crate::ReplicationMode::Slave { .. } => buf.extend_from_slice(b"\nrole:slave"),
                 }
+                write!(&mut buf, "\nmaster_replid:{}", self.server.master_replid).context("Falied to write info data")?;
+                write!(&mut buf, "\nmaster_repl_offset:{}", self.server.master_repl_offset).context("Falied to write info data")?;
                 RespType::BulkString(buf.into_boxed_slice())
             }
             b"command" => {
