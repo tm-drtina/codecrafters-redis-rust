@@ -85,6 +85,12 @@ impl<'a> Connection<'a> {
                 let _old_value = self.server.set(key, value, expiry).await;
                 RespType::SimpleString(String::from("OK"))
             }
+            b"info" => {
+                let mut buf = Vec::new();
+                buf.extend_from_slice(b"# Replication");
+                buf.extend_from_slice(b"\nrole:master");
+                RespType::BulkString(buf.into_boxed_slice())
+            }
             b"command" => {
                 eprintln!("Ignoring `COMMAND` command. Sending back empty array");
                 RespType::Array(VecDeque::new())
