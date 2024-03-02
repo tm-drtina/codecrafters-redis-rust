@@ -43,7 +43,7 @@ impl<'a> ReplicationConnection<'a> {
         self.writer.write_item(RespType::Array(once(RespType::BulkString(b"ping".to_vec().into_boxed_slice())).collect())).await?;
         self.ensure_pong().await?;
         self.writer.write_item(RespType::Array(
-            //REPLCONF listening-port <PORT>
+            // REPLCONF listening-port <PORT>
             once(RespType::bulk_string_from_bytes(b"REPLCONF"))
             .chain(once(RespType::bulk_string_from_bytes(b"listening-port")))
             .chain(once(RespType::bulk_string_from_string(format!("{}", self.server.addr.port()))))
@@ -51,13 +51,22 @@ impl<'a> ReplicationConnection<'a> {
         )).await?;
         self.ensure_ok().await?;
         self.writer.write_item(RespType::Array(
-            //REPLCONF capa psync2
+            // REPLCONF capa psync2
             once(RespType::bulk_string_from_bytes(b"REPLCONF"))
             .chain(once(RespType::bulk_string_from_bytes(b"capa")))
             .chain(once(RespType::bulk_string_from_bytes(b"psync2")))
             .collect()
         )).await?;
         self.ensure_ok().await?;
+        self.writer.write_item(RespType::Array(
+            // PSYNC ? -1
+            once(RespType::bulk_string_from_bytes(b"PSYNC"))
+            .chain(once(RespType::bulk_string_from_bytes(b"?")))
+            .chain(once(RespType::bulk_string_from_bytes(b"-1")))
+            .collect()
+        )).await?;
+        // TODO: store it
+        // FULLRESYNC <ID> <offset>
         eprintln!("Replication handshake done");
         Ok(())
     }
