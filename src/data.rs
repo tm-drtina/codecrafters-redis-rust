@@ -2,11 +2,13 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
+#[derive(Debug)]
 struct ValueWithMeta {
     value: Box<[u8]>,
     expiry: Option<Instant>,
 }
 
+#[derive(Debug, Default)]
 pub struct Data {
     data: HashMap<Box<[u8]>, ValueWithMeta>,
 }
@@ -21,12 +23,6 @@ impl ValueWithMeta {
 }
 
 impl Data {
-    pub fn new() -> Self {
-        Self {
-            data: HashMap::new(),
-        }
-    }
-
     pub async fn get(&mut self, key: Box<[u8]>) -> Option<Box<[u8]>> {
         let entry = match self.data.entry(key) {
             Entry::Occupied(e) => e,

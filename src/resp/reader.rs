@@ -52,19 +52,19 @@ impl<'stream> RespReader<'stream> {
     async fn read_i64(&mut self) -> anyhow::Result<i64> {
         self.buf.clear();
         self.read_until_crlf().await?;
-        Ok(std::str::from_utf8(&self.buf)
+        std::str::from_utf8(&self.buf)
             .context("Non-UTF-8 valid string provided")?
             .parse()
-            .context("Failed to parse string to int")?)
+            .context("Failed to parse string to int")
     }
 
     async fn read_usize(&mut self) -> anyhow::Result<usize> {
         self.buf.clear();
         self.read_until_crlf().await?;
-        Ok(std::str::from_utf8(&self.buf)
+        std::str::from_utf8(&self.buf)
             .context("Non-UTF-8 valid string provided")?
             .parse()
-            .context("Failed to parse string to int")?)
+            .context("Failed to parse string to int")
     }
 
     pub fn read_item<'a>(
@@ -77,8 +77,7 @@ impl<'stream> RespReader<'stream> {
                 Ok(b':') => Ok(Some(RespType::Integer(self.read_i64().await?))),
                 Ok(b'$') => {
                     let len = self.read_usize().await?;
-                    let mut buf = Vec::with_capacity(len + 2);
-                    buf.resize(len + 2, 0);
+                    let mut buf = vec![0; len + 2];
                     self.reader.read_exact(&mut buf).await?;
                     assert_eq!(Some(b'\n'), buf.pop());
                     assert_eq!(Some(b'\r'), buf.pop());

@@ -5,6 +5,7 @@ use tokio::sync::Mutex;
 
 use crate::data::Data;
 
+#[derive(Debug, Default)]
 pub struct Server(Arc<Mutex<Data>>);
 
 impl Clone for Server {
@@ -15,7 +16,7 @@ impl Clone for Server {
 
 impl Server {
     pub fn new() -> Self {
-        Self(Arc::new(Mutex::new(Data::new())))
+        Self::default()
     }
 
     pub async fn get(&self, key: Box<[u8]>) -> Option<Box<[u8]>> {

@@ -109,7 +109,7 @@ impl<'a> Connection<'a> {
                 RespType::Integer(_) => bail!("Unexpected integer received"),
                 RespType::BulkString(mut s) => {
                     s.make_ascii_lowercase();
-                    self.command(&mut s, VecDeque::new()).await?
+                    self.command(&s, VecDeque::new()).await?
                 }
                 RespType::Array(mut items) => {
                     let command = items

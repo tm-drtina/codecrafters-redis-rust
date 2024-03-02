@@ -2,13 +2,6 @@ use std::collections::VecDeque;
 
 use anyhow::Context;
 
-/// RESP data type 	Minimal protocol version 	Category 	First byte
-/// Simple strings 	RESP2 	Simple 	+
-/// Simple Errors 	RESP2 	Simple 	-
-/// Integers 	RESP2 	Simple 	:
-/// Bulk strings 	RESP2 	Aggregate 	$
-/// Arrays 	RESP2 	Aggregate 	*
-
 /// RESP2 types
 #[derive(Debug)]
 pub enum RespType {
