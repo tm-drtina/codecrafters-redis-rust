@@ -1,6 +1,6 @@
 use std::iter::once;
 
-use anyhow::bail;
+use anyhow::{bail, ensure, Context};
 use tokio::net::TcpStream;
 
 use crate::resp::{RespReader, RespType, RespWriter};
@@ -37,6 +37,21 @@ impl<'a> ReplicationConnection<'a> {
             None => bail!("Failed to receive PONG response to our PING"),
         }
     }
+    async fn ensure_full_resync(&mut self) -> anyhow::Result<String> {
+        match self.reader.read_item().await? {
+            Some(RespType::SimpleString(s)) if s.starts_with("FULLRESYNC ") => {
+                let (id, offset) = s
+                    .strip_prefix("FULLRESYNC ")
+                    .unwrap()
+                    .split_once(' ')
+                    .context("Invalid format of FULLRESYNC response")?;
+                ensure!(offset == "0", "Expected received offset to be zero");
+                Ok(id.to_string())
+            }
+            Some(_) => bail!("Received invalid reponse for PSYNC"),
+            None => bail!("Failed to receive FULLRESYNC response to our PSYNC"),
+        }
+    }
 
     async fn handshake(&mut self) -> anyhow::Result<()> {
         eprintln!("Starting replication handshake");
@@ -67,6 +82,8 @@ impl<'a> ReplicationConnection<'a> {
         )).await?;
         // TODO: store it
         // FULLRESYNC <ID> <offset>
+        let _master_id = self.ensure_full_resync().await?;
+        // handle RDB file...
         eprintln!("Replication handshake done");
         Ok(())
     }

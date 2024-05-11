@@ -23,6 +23,20 @@ impl<'stream> RespWriter<'stream> {
         Ok(())
     }
 
+    async fn write_len(&mut self, len: usize) -> anyhow::Result<()> {
+        self.writer.write_all(format!("{}", len).as_bytes()).await?;
+        self.write_crlf().await?;
+        Ok(())
+    }
+
+    pub async fn write_rdb_file(&mut self, file: &[u8]) -> anyhow::Result<()> {
+        self.writer.write_u8(b'$').await?;
+        self.write_len(file.len()).await?;
+        self.writer.write_all(file).await?;
+        self.writer.flush().await?;
+        Ok(())
+    }
+
     pub fn write_item<'a>(
         &'a mut self,
         item: RespType,
@@ -39,10 +53,7 @@ impl<'stream> RespWriter<'stream> {
                     self.write_crlf().await?;
                 }
                 RespType::BulkString(data) => {
-                    self.writer
-                        .write_all(format!("{}", data.len()).as_bytes())
-                        .await?;
-                    self.write_crlf().await?;
+                    self.write_len(data.len()).await?;
                     self.writer.write_all(&data).await?;
                     self.write_crlf().await?;
                 }
@@ -52,10 +63,7 @@ impl<'stream> RespWriter<'stream> {
                     self.write_crlf().await?;
                 }
                 RespType::Array(items) => {
-                    self.writer
-                        .write_all(format!("{}", items.len()).as_bytes())
-                        .await?;
-                    self.write_crlf().await?;
+                    self.write_len(items.len()).await?;
                     for item in items {
                         self.write_item(item).await?;
                     }

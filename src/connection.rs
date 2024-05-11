@@ -1,13 +1,22 @@
 use std::collections::VecDeque;
+use std::io::Write;
 use std::net::SocketAddr;
 use std::time::Duration;
-use std::io::Write;
 
 use anyhow::{anyhow, bail, ensure, Context};
 use tokio::net::TcpStream;
 
 use crate::resp::{RespReader, RespType, RespWriter};
 use crate::Server;
+
+const EMPTY_RDB_FILE: &[u8] = &[
+    0x52, 0x45, 0x44, 0x49, 0x53, 0x30, 0x30, 0x31, 0x31, 0xfa, 0x09, 0x72, 0x65, 0x64, 0x69, 0x73,
+    0x2d, 0x76, 0x65, 0x72, 0x05, 0x37, 0x2e, 0x32, 0x2e, 0x30, 0xfa, 0x0a, 0x72, 0x65, 0x64, 0x69,
+    0x73, 0x2d, 0x62, 0x69, 0x74, 0x73, 0xc0, 0x40, 0xfa, 0x05, 0x63, 0x74, 0x69, 0x6d, 0x65, 0xc2,
+    0x6d, 0x08, 0xbc, 0x65, 0xfa, 0x08, 0x75, 0x73, 0x65, 0x64, 0x2d, 0x6d, 0x65, 0x6d, 0xc2, 0xb0,
+    0xc4, 0x10, 0x00, 0xfa, 0x08, 0x61, 0x6f, 0x66, 0x2d, 0x62, 0x61, 0x73, 0x65, 0xc0, 0x00, 0xff,
+    0xf0, 0x6e, 0x3b, 0xfe, 0xc0, 0xff, 0x5a, 0xa2,
+];
 
 pub struct Connection<'a> {
     reader: RespReader<'a>,
@@ -32,22 +41,24 @@ impl<'a> Connection<'a> {
         &mut self,
         command: &[u8],
         mut args: VecDeque<RespType>,
-    ) -> anyhow::Result<RespType> {
+    ) -> anyhow::Result<()> {
         eprintln!(
             "Processing command {} with args {args:?}",
             String::from_utf8_lossy(command)
         );
-        Ok(match command {
+        match command {
             b"ping" => {
                 ensure!(args.is_empty(), "PING accepts no args!");
-                RespType::SimpleString(String::from("PONG"))
+                let response = RespType::SimpleString(String::from("PONG"));
+                self.writer.write_item(response).await?;
             }
             b"echo" => {
                 ensure!(args.len() == 1, "ECHO accepts exactly one arg!");
-                match args.pop_front().unwrap() {
+                let response = match args.pop_front().unwrap() {
                     arg @ RespType::BulkString(_) => arg,
                     _ => bail!("Invalid argument for `ECHO` command"),
-                }
+                };
+                self.writer.write_item(response).await?;
             }
             b"get" => {
                 ensure!(args.len() == 1, "GET accepts exactly one arg!");
@@ -56,10 +67,11 @@ impl<'a> Connection<'a> {
                     _ => bail!("Invalid value for `key` argument"),
                 };
                 let value = self.server.get(key).await;
-                match value {
+                let response = match value {
                     Some(value) => RespType::BulkString(value),
                     None => RespType::NullBulkString,
-                }
+                };
+                self.writer.write_item(response).await?;
             }
             b"set" => {
                 ensure!(args.len() >= 2, "SET requires at least two args!");
@@ -84,7 +96,8 @@ impl<'a> Connection<'a> {
                     }
                 }
                 let _old_value = self.server.set(key, value, expiry).await;
-                RespType::SimpleString(String::from("OK"))
+                let response = RespType::SimpleString(String::from("OK"));
+                self.writer.write_item(response).await?;
             }
             b"info" => {
                 let mut buf = Vec::new();
@@ -95,15 +108,18 @@ impl<'a> Connection<'a> {
                 }
                 write!(&mut buf, "\nmaster_replid:{}", self.server.master_replid).context("Falied to write info data")?;
                 write!(&mut buf, "\nmaster_repl_offset:{}", self.server.master_repl_offset).context("Falied to write info data")?;
-                RespType::BulkString(buf.into_boxed_slice())
+                let response = RespType::BulkString(buf.into_boxed_slice());
+                self.writer.write_item(response).await?;
             }
             b"command" => {
                 eprintln!("Ignoring `COMMAND` command. Sending back empty array");
-                RespType::Array(VecDeque::new())
+                let response = RespType::Array(VecDeque::new());
+                self.writer.write_item(response).await?;
             }
             b"replconf" => {
                 eprintln!("Ignoring `REPLCONF` command.");
-                RespType::SimpleString(String::from("OK"))
+                let response = RespType::SimpleString(String::from("OK"));
+                self.writer.write_item(response).await?;
             }
             b"psync" => {
                 ensure!(args.len() == 2, "PSYNC requires exactly two args!");
@@ -115,13 +131,17 @@ impl<'a> Connection<'a> {
                     RespType::BulkString(s) => s,
                     _ => bail!("Invalid value for `value` argument"),
                 };
-                ensure!(&*master_id == &*b"?", "Expected unknown master ID");
-                ensure!(&*offset == &*b"-1", "Expected unknown master ID");
+                ensure!(*master_id == *b"?", "Expected unknown master ID");
+                ensure!(*offset == *b"-1", "Expected unknown master ID");
 
-                RespType::SimpleString(format!("FULLRESYNC {} {}", self.server.master_replid, self.server.master_repl_offset))
+                let response = RespType::SimpleString(format!("FULLRESYNC {} {}", self.server.master_replid, self.server.master_repl_offset));
+                self.writer.write_item(response).await?;
+
+                self.writer.write_rdb_file(EMPTY_RDB_FILE).await?;
             }
             _ => bail!("Unknown command `{}`", String::from_utf8_lossy(command)),
-        })
+        }
+        Ok(())
     }
 
     pub async fn run_processing_loop(mut self) -> anyhow::Result<()> {
@@ -131,7 +151,7 @@ impl<'a> Connection<'a> {
                 eprintln!("Terminating processing loop for client: {:?}", self.addr);
                 break;
             };
-            let response = match item {
+            match item {
                 RespType::SimpleString(mut s) => {
                     s.make_ascii_lowercase();
                     self.command(s.as_bytes(), VecDeque::new()).await?
@@ -163,7 +183,6 @@ impl<'a> Connection<'a> {
                 }
                 RespType::NullBulkString => unreachable!("Reader doesn't parse this value"),
             };
-            self.writer.write_item(response).await?;
         }
         Ok(())
     }

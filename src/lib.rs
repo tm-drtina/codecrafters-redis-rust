@@ -1,7 +1,7 @@
 mod connection;
 mod data;
-mod resp;
 mod replication_connection;
+mod resp;
 mod server;
 
 pub use connection::Connection;
